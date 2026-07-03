@@ -31,6 +31,11 @@ RENDER_EXTERNAL_HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME")
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
+# =========================================================
+# FRONTEND / CORS / CSRF SETTINGS
+# =========================================================
+FRONTEND_URL = os.getenv("FRONTEND_URL", "")
+
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
@@ -40,7 +45,29 @@ CSRF_TRUSTED_ORIGINS = [
     if origin.strip()
 ]
 
+if FRONTEND_URL and FRONTEND_URL not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(FRONTEND_URL)
+
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,"
+        "http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175,http://127.0.0.1:5176"
+    ).split(",")
+    if origin.strip()
+]
+
+if FRONTEND_URL and FRONTEND_URL not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.append(FRONTEND_URL)
+
+CORS_ALLOW_CREDENTIALS = False
+
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # =========================================================
 # APPLICATIONS
@@ -59,6 +86,15 @@ INSTALLED_APPS = [
 
     "payroll",
 ]
+
+# Optional Cloudinary support
+USE_CLOUDINARY = os.getenv("USE_CLOUDINARY", "False").lower() == "true"
+
+if USE_CLOUDINARY:
+    INSTALLED_APPS += [
+        "cloudinary",
+        "cloudinary_storage",
+    ]
 
 # =========================================================
 # MIDDLEWARE
@@ -102,12 +138,23 @@ TEMPLATES = [
 # =========================================================
 # DATABASE
 # =========================================================
-DATABASES = {
-    "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600,
-    )
-}
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 # =========================================================
 # PASSWORD VALIDATION
@@ -141,35 +188,36 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-}
-
 # =========================================================
-# MEDIA FILES
+# MEDIA FILES / CLOUDINARY
 # =========================================================
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# =========================================================
-# CORS SETTINGS
-# =========================================================
-CORS_ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv(
-        "CORS_ALLOWED_ORIGINS",
-        "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,"
-        "http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175,http://127.0.0.1:5176"
-    ).split(",")
-    if origin.strip()
-]
+if USE_CLOUDINARY:
+    CLOUDINARY_STORAGE = {
+        "CLOUD_NAME": os.getenv("CLOUDINARY_CLOUD_NAME"),
+        "API_KEY": os.getenv("CLOUDINARY_API_KEY"),
+        "API_SECRET": os.getenv("CLOUDINARY_API_SECRET"),
+    }
 
-CORS_ALLOW_CREDENTIALS = False
+    STORAGES = {
+        "default": {
+            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+else:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
 # =========================================================
 # DJANGO REST FRAMEWORK
@@ -188,3 +236,10 @@ REST_FRAMEWORK = {
 # DEFAULT PRIMARY KEY
 # =========================================================
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# =========================================================
+# ADMIN SITE TEXT
+# =========================================================
+ADMIN_SITE_HEADER = "Payslip Generator Admin"
+ADMIN_SITE_TITLE = "Payslip Admin"
+ADMIN_INDEX_TITLE = "Welcome to Payslip Generator Dashboard"
