@@ -1,8 +1,8 @@
-Django>=5.2,<6.0
-djangorestframework>=3.17,<3.18
-django-cors-headers>=4.7
-reportlab>=4.0
-gunicorn
-whitenoise[brotli]
 dj-database-url
 psycopg2-binary
+gunicorn
+whitenoise
+django-cors-headers
+djangorestframework
+cloudinary
+django-cloudinary-storage
